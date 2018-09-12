@@ -1,4 +1,4 @@
-(require 'rm)
+(require 'rem)
 
 (describe "Plus"
   (it "should add up numbers"

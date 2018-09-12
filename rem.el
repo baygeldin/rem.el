@@ -1,4 +1,4 @@
-;;; rm.el --- reactive memoization for Emacs Lisp. -*- lexical-binding: t -*-
+;;; rem.el --- reactive memoization for Emacs Lisp. -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2018 Alexander Baygeldin
 
@@ -64,22 +64,22 @@
   (let ((form `(,(concat name "-fn") blabla--prev blabla--next blabla-stack)))
     `(defmacro ,name ,params ,form)))
 
-(rm-defcomponent entry (e)
+(rem-defcomponent entry (e)
   (concat (entry-title e) (entry-desc e)))
 
-(rm-defcomponent list (entries)
+(rem-defcomponent list (entries)
   (--map-indexed (entry it) entries))
 
-(rm-defcomponent header ()
+(rem-defcomponent header ()
   "Hello!")
 
-(rm-defcomponent body (store)
+(rem-defcomponent body (store)
   (concat (header) (list (plist-get store :entries))))
 
-(rm-defview my-view ()
+(rem-defview my-view ()
   (body store))
 
-(defmacro rm-defview (name params &optional docstring &rest forms)
+(defmacro rem-defview (name params &optional docstring &rest forms)
   ;; it should also provide local state...
   `(let ((blabla-prev)
          (blabla-next)
@@ -100,10 +100,8 @@
 
 (my-view)
 
-(rm-bind "*my-buffer*" 'my-view '(action1 action2))
-
-
+(rem-bind "*my-buffer*" 'my-view '(action1 action2))
 
 (provide 'org-retention)
 
-;;; rm.el ends here
+;;; rem.el ends here
