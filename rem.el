@@ -44,10 +44,8 @@ PARAMS are used to render FORMS."
      (defun ,name ,params
        ,(if (stringp docstring) docstring)
        (prog1 (progn ,docstring ,@forms)
-         ;; NOTE: it would probably be better performance-wise to create
-         ;; a new hash table with the same size as the previous hash table,
-         ;; but `ht-create' doesn't provide such functionality for now.
-         (setq rem--prev-hash rem--next-hash rem--next-hash (ht-create))))))
+         (setq rem--prev-hash rem--next-hash)
+         (setq rem--next-hash (make-hash-table :size (ht-size rem-prev-hash)))))))
 
 (defun vertical-concat (a b)
   "vertical concat"
