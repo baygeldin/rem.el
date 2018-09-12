@@ -34,6 +34,21 @@
 (defun m (msg)
   (message "%s" msg))
 
+(defmacro rem-defview (name params &optional docstring &rest forms)
+  "Define NAME as a new view with optional DOCSTRING.
+PARAMS are used to render FORMS."
+  (declare (indent defun))
+  `(let ((rem--prev-hash (ht-create))
+         (rem--next-hash (ht-create))
+         (rem--deps-stack nil))
+     (defun ,name ,params
+       ,(if (stringp docstring) docstring)
+       (prog1 (progn ,docstring ,@forms)
+         ;; NOTE: it would probably be better performance-wise to create
+         ;; a new hash table with the same size as the previous hash table,
+         ;; but `ht-create' doesn't provide such functionality for now.
+         (setq rem--prev-hash rem--next-hash rem--next-hash (ht-create))))))
+
 (defun vertical-concat (a b)
   "vertical concat"
   (let* ((asplit (s-lines a))
@@ -42,60 +57,43 @@
     (s-join "\n" (--map (concat (s-pad-right amax " " (car it)) (cdr it))
                         (-zip-fill (s-repeat amax " ") asplit bsplit)))))
 
-(defmacro defcomponent (name params form)
-  `(defun ,(concat name "-fn") ,(append '(blabla-prev blabla-next blabla-stack) params)
-     ;; add name + params to current deps list (if exists)
-     ;;
-     ;; if current hash contains name -> params
-     ;;    add memoized result + deps to new hash
-     ;;    recursively do the same thing for all name -> params in deps
-     ;;    return result
-     ;; else
-     ;;    add new list to deps stack
-     ;;    call form, get result
-     ;;    pop deps list from stack
-     ;;    add current name -> params with result and deps to new hash
-     ;;    return result
-     ;;
-     ;; questions: how to access current hash, previous hash and deps stack?
-     ;; maybe components should actually be macros that expand in component-fn function call with additional params: hashes and stack.
-     ;; in order to render the component one would need to create an object with hashes and stack and call root component fn with them.
-     ;; after that it should swap hashes and clear deps stack. also it should copy hash size from previous hash.
-     ,form)
-  (let ((form `(,(concat name "-fn") blabla--prev blabla--next blabla-stack)))
-    `(defmacro ,name ,params ,form)))
+(defmacro rem-defcomponent (name params &optional docstring &rest forms)
+  "Define NAME as a new component with optional DOCSTRING.
+PARAMS are used to render FORMS."
+  (declare (indent defun))
+  (let* ((fn (concat name "--fn"))
+         (context '(rem--prev-hash rem--next-hash rem--deps-stack))
+         (full-params (append context params))
+         (form `(,fn ,full-params)))
+    `(progn
+       (defun ,fn ,full-params
+         ;; add name + params to current deps list (if exists)
+         ;;
+         ;; if current hash contains name -> params
+         ;;    add memoized result + deps to new hash
+         ;;    recursively do the same thing for all name -> params in deps
+         ;;    return result
+         ;; else
+         ;;    add new list to deps stack
+         ;;    call form, get result
+         ;;    pop deps list from stack
+         ;;    add current name -> params with result and deps to new hash
+         ;;    return result
+         ())
+       (defmacro ,name ,params ,(if (stringp docstring) docstring) ,form))))
 
 (rem-defcomponent entry (e)
-  (concat (entry-title e) (entry-desc e)))
+               (concat (entry-title e) (entry-desc e)))
 
 (rem-defcomponent list (entries)
-  (--map-indexed (entry it) entries))
+               (--map-indexed (entry it) entries))
 
 (rem-defcomponent header ()
-  "Hello!")
+               "Hello!")
 
 (rem-defcomponent body (store)
-  (concat (header) (list (plist-get store :entries))))
+               (concat (header) (list (plist-get store :entries))))
 
-(defmacro rem-defview (name params &optional docstring &rest forms)
-  (declare (indent defun))
-  `(let ((rem--prev-hash (ht-create))
-         (rem--next-hash (ht-create))
-         (rem--deps-stack nil))
-     (defun ,name ,params
-       ,docstring
-       (prog1 (progn ,@forms)
-         ;; NOTE: it would probably be better performance-wise to create
-         ;; a new hash table with the same size as the previous hash table,
-         ;; but `ht-create' doesn't provide such functionality for now.
-         (setq rem--prev-hash rem--next-hash rem--next-hash (ht-create))))))
-
-(rem-defview my-view ()
-  "kek"
-  (m rem--prev-hash)
-  (ht-set! rem--next-hash 'lol 5))
-
-(my-view)
 
 (rem-bind "*my-buffer*" 'my-view '(action1 action2))
 
