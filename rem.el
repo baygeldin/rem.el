@@ -65,7 +65,14 @@ PARAMS are used to render FORMS."
          (form `(,fn ,full-params)))
     `(progn
        (defun ,fn ,full-params
-         ;; add name + params to current deps list (if exists)
+         (when-let ((deps (car rem--deps-stack)))
+           (push (list ,name ,params) deps))
+         (if-let* ((component (ht-get rem--prev-hash ,name))
+                   (memoized (ht-get component ,params)))
+             ;;(ht-get rem--next-hash ,name)
+             (ht-set! rem--next-hash ,name (make-hash-table :size (ht-size component)))
+             ;;(ht-set! newhash ,params memoized)
+           ())
          ;;
          ;; if current hash contains name -> params
          ;;    add memoized result + deps to new hash
@@ -77,7 +84,7 @@ PARAMS are used to render FORMS."
          ;;    pop deps list from stack
          ;;    add current name -> params with result and deps to new hash
          ;;    return result
-         ())
+         )
        (defmacro ,name ,params ,(if (stringp docstring) docstring) ,form))))
 
 (rem-defcomponent entry (e)
