@@ -27,6 +27,7 @@
 
 (require 'dash)
 (require 's)
+(require 'ht)
 
 ;; Temporary
 
@@ -43,7 +44,7 @@
 
 (defmacro defcomponent (name params form)
   `(defun ,(concat name "-fn") ,(append '(blabla-prev blabla-next blabla-stack) params)
-     ;; add name + params to current deps list
+     ;; add name + params to current deps list (if exists)
      ;;
      ;; if current hash contains name -> params
      ;;    add memoized result + deps to new hash
@@ -76,27 +77,23 @@
 (rem-defcomponent body (store)
   (concat (header) (list (plist-get store :entries))))
 
-(rem-defview my-view ()
-  (body store))
-
 (defmacro rem-defview (name params &optional docstring &rest forms)
-  ;; it should also provide local state...
-  `(let ((blabla-prev)
-         (blabla-next)
-         (blabla-stack))
-     ;; check if docstring stringp if not -- merge with forms
-     ;; execute forms with progn
-     ;; return last result with prog1
-     ;; setq blabla-prev to blabla-next, set blabla-next to new hash with same size
-     (defun ,name ,params ,docstring ,forms)))
+  (declare (indent defun))
+  `(let ((rem--prev-hash (ht-create))
+         (rem--next-hash (ht-create))
+         (rem--deps-stack nil))
+     (defun ,name ,params
+       ,docstring
+       (prog1 (progn ,@forms)
+         ;; NOTE: it would probably be better performance-wise to create
+         ;; a new hash table with the same size as the previous hash table,
+         ;; but `ht-create' doesn't provide such functionality for now.
+         (setq rem--prev-hash rem--next-hash rem--next-hash (ht-create))))))
 
-(let ((kek "kek"))
-  (defun lala ()
-    (message kek)
-    (setq kek (concat kek kek))))
-
-(lala) ;; kekekkekekeke!
-(message kek) ;; void variable! yuh!
+(rem-defview my-view ()
+  "kek"
+  (m rem--prev-hash)
+  (ht-set! rem--next-hash 'lol 5))
 
 (my-view)
 
