@@ -104,16 +104,37 @@ PARAMS are used to render FORMS."
          ))))
 
 (defmacro foo (params)
-  (let ((shit (--map (intern (format ",%s" it)) params)))
+  (let ((shit (--map (intern (format ",%s" it)) params))
+        (fuck `(bar--fn prefix ,@params)))
     `(progn
        (defun bar--fn ,(append '(prefix) params)
          (format "I got your prefix %s" prefix))
        (defmacro bar ,params
-         (backquote (bar--fn prefix ,@shit))))))
+         '(bar--fn prefix )
+         '(apply 'bar--fn (append '(prefix) (--map (eval it t) (quote ,params))))))))
+
+
+;; when I call
+(foo (a b c))
+;; I want it to define the following macro
+(defmacro bar (a b c)
+  `(bar--fn prefix ,a ,b ,c))
+;; what kind of sorcery do I need?
+(defmacro foo (params)
+  (let ((xyz ()))
+    `(defmacro bar ,params
+       '(bar--fn prefix ,@xyz))))
+;; if nested macro won't be able to output actual values it receives
+;; then values are practically lost and there's now way to retrieve
+;; (with whatever eval sorcery you decide to use)
 
 (foo (a b c))
 (let ((prefix 1))
   (bar 1 2 3))
+(macroexpand '(bar 1 2 3))
+(setq params '(a b c))
+(eval ``(bar-fn prefix ,@,params))
+(eval (print ``(a ,,(+ 1 2))))
 
 (rem-defcomponent entry (e)
   (format "%s: %s." (car e) (cdr e)))
