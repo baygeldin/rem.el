@@ -29,10 +29,7 @@
 (require 's)
 (require 'ht)
 
-;; Temporary
-
-(defun m (msg)
-  (message "%s" msg))
+;; Core
 
 (defmacro rem-defview (name params &optional docstring &rest forms)
   "Define NAME as a new view with an optional DOCSTRING.
@@ -47,28 +44,24 @@ PARAMS are used to render FORMS."
          (setq rem--prev-hash rem--next-hash rem--deps-stack '(nil)
                rem--next-hash (make-hash-table :size (ht-size rem--prev-hash)))))))
 
-(defun vertical-concat (a b)
-  "vertical concat"
-  (let* ((asplit (s-lines a))
-         (bsplit (s-lines b))
-         (amax (-max (-map 'length asplit))))
-    (s-join "\n" (--map (concat (s-pad-right amax " " (car it)) (cdr it))
-                        (-zip-fill (s-repeat amax " ") asplit bsplit)))))
-
-(defun rem--child-ht (parent name &rest params)
-  "Get child hash table of PARENT by NAME or create it with PARAMS."
-  (or (ht-get parent name)
-      (let ((child (apply 'make-hash-table params)))
-        (ht-set! parent name child)
-        child)))
+(defun rem--params-ht (root component &rest keyword-args)
+  "Get hash table with params for COMPONENT in ROOT hash table.
+Additional arguments are specified as keyword/argument pairs."
+  (or (ht-get root component)
+      ;; NOTE: not sure if 'equal test method is the best option here.
+      ;; Since components are supposed to be pure, it should be enough
+      ;; to compare keys in params hash table (i.e. lists of params)
+      ;; shallowly, but 'equal seems to be deep. Requires investigation.   
+      (let ((params (apply 'make-hash-table :test 'equal keyword-args)))
+        (ht-set! root component params)
+        params)))
 
 (defun rem--copy-memo (prev-hash next-hash name params)
   "Copy memoized data from PREV-HASH to NEW-HASH.
 It copies results of rendering component NAME with PARAMS along with its dependencies."
   (let* ((prev-component (ht-get prev-hash name))
-         (next-component (rem--child-ht next-hash name
-                                     :size (ht-size prev-component)
-                                     :test 'equal))
+         (next-component (rem--params-ht next-hash name
+                                     :size (ht-size prev-component)))
          (memoized (ht-get prev-component params)))
     (ht-set! next-component params memoized)
     (dolist (dependency (cdr memoized))
@@ -84,17 +77,13 @@ PARAMS are used to render FORMS."
        (defun ,fn ,(append context params)
          (let ((args (list ,@params)))
            (push (cons ',name args) (car rem--deps-stack))
-           (when (eq ',name 'entry)
-             (pp rem--prev-hash)
-             (pp rem--next-hash)
-             (pp rem--deps-stack))
            (-if-let* ((component (ht-get rem--prev-hash ',name))
                       (memoized (ht-get component args)))
                (prog1 (car memoized)
                  (rem--copy-memo rem--prev-hash rem--next-hash ',name args))
              (push nil rem--deps-stack)
              (let ((result (progn ,docstring ,@forms)))
-               (ht-set! (rem--child-ht rem--next-hash ',name :test 'equal) args
+               (ht-set! (rem--params-ht rem--next-hash ',name) args
                         (cons result (pop rem--deps-stack)))
                result))))
        (defmacro ,name ,params
@@ -102,39 +91,30 @@ PARAMS are used to render FORMS."
          (let ((fn ',fn) (context ',context) (args (list ,@params)))
            `(,fn ,@context ,@args))))))
 
+;; Components
+
+(rem-defcomponent rem-vconcat (left right)
+  "Concatenate LEFT and RIGHT blocks of text vertically."
+  (let* ((left-lines (s-lines left))
+         (right-lines (s-lines right))
+         (left-max (-max (-map 'length left-lines))))
+    (s-join "\n" (--map (concat (s-pad-right left-max " " (car it)) (cdr it))
+                        (-zip-fill (s-repeat left-max " ") left-lines right-lines)))))
+
 (rem-defcomponent entry (e)
   (print (format "entry called with %s" e))
   (format "%s: %s." (car e) (cdr e)))
 
-(defun entry--fn (rem--prev-hash rem--next-hash rem--deps-stack e)
-  (let ((args (list e)))
-    (push (cons (quote entry) args) (car rem--deps-stack))
-    (-if-let* ((component (ht-get rem--prev-hash (quote entry)))
-               ;; for entry with args (("title-0" . "description-0")) it returned nil
-               ;; although it was right there in component hash table!
-               ;; it's because they are different lisp objects
-               ;; (different lists with SAME content, i.e. shallow equality would be enough!)
-               (memoized (ht-get component args)))
-        (prog1 (car memoized)
-          (rem--copy-memo rem--prev-hash rem--next-hash (quote entry) args))
-      (push nil rem--deps-stack)
-      (let ((result (progn
-                      (print (format "entry called with %s" e))
-                      (format "%s: %s." (car e) (cdr e)))))
-        (ht-set! (rem--child-ht rem--next-hash (quote entry) :test 'equal)
-                 args (cons result (pop rem--deps-stack)))
-        result))))
-
 (rem-defcomponent entry-list (entries)
-  ;;(print (format "entry list called"))
+  (print (format "entry list called"))
   (s-join "\n" (--map (entry it) entries)))
 
 (rem-defcomponent header ()
-  ;;(print (format "header called"))
+  (print (format "header called"))
   "Hello!")
 
 (rem-defcomponent body (entries)
-  ;;(print (format "body called"))
+  (print (format "body called"))
   (concat (header) (entry-list entries)))
 
 (rem-defview view ()
