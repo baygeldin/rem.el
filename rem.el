@@ -67,7 +67,8 @@ PARAMS are used to render FORMS."
 It copies results of rendering component NAME with PARAMS along with its dependencies."
   (let* ((prev-component (ht-get prev-hash name))
          (next-component (rem--child-ht next-hash name
-                                     :size (ht-size prev-component)))
+                                     :size (ht-size prev-component)
+                                     :test 'equal))
          (memoized (ht-get prev-component params)))
     (ht-set! next-component params memoized)
     (dolist (dependency (cdr memoized))
@@ -93,7 +94,7 @@ PARAMS are used to render FORMS."
                  (rem--copy-memo rem--prev-hash rem--next-hash ',name args))
              (push nil rem--deps-stack)
              (let ((result (progn ,docstring ,@forms)))
-               (ht-set! (rem--child-ht rem--next-hash ',name) args
+               (ht-set! (rem--child-ht rem--next-hash ',name :test 'equal) args
                         (cons result (pop rem--deps-stack)))
                result))))
        (defmacro ,name ,params
@@ -111,6 +112,8 @@ PARAMS are used to render FORMS."
     (-if-let* ((component (ht-get rem--prev-hash (quote entry)))
                ;; for entry with args (("title-0" . "description-0")) it returned nil
                ;; although it was right there in component hash table!
+               ;; it's because they are different lisp objects
+               ;; (different lists with SAME content, i.e. shallow equality would be enough!)
                (memoized (ht-get component args)))
         (prog1 (car memoized)
           (rem--copy-memo rem--prev-hash rem--next-hash (quote entry) args))
@@ -118,7 +121,7 @@ PARAMS are used to render FORMS."
       (let ((result (progn
                       (print (format "entry called with %s" e))
                       (format "%s: %s." (car e) (cdr e)))))
-        (ht-set! (rem--child-ht rem--next-hash (quote entry))
+        (ht-set! (rem--child-ht rem--next-hash (quote entry) :test 'equal)
                  args (cons result (pop rem--deps-stack)))
         result))))
 
@@ -145,7 +148,7 @@ PARAMS are used to render FORMS."
   (setq i (+ i 1))
   (view))
 
-;; (add-entry)
+(add-entry)
 
 ;; (rem-bind "*my-buffer*" 'my-view '(action1 action2))
 
