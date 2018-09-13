@@ -114,16 +114,16 @@ PARAMS are used to render FORMS."
          '(apply 'bar--fn (append '(prefix) (--map (eval it t) (quote ,params))))))))
 
 
-;; when I call
-(foo (a b c))
-;; I want it to define the following macro
-(defmacro bar (a b c)
-  `(bar--fn prefix ,a ,b ,c))
-;; what kind of sorcery do I need?
 (defmacro foo (params)
-  (let ((xyz ()))
-    `(defmacro bar ,params
-       '(bar--fn prefix ,@xyz))))
+  `(defmacro bar ,params
+     (let ((args (list ,@params)))
+       `(bar--fn prefix ,@args))))
+(foo (a b c))
+(macroexpand '(foo (a b c)))
+(defun bar--fn (prefix a b c)
+  (format "%s %s %s %s" prefix a b c))
+(bar 1 2 3)
+(macroexpand '(bar 1 2 3))
 ;; if nested macro won't be able to output actual values it receives
 ;; then values are practically lost and there's now way to retrieve
 ;; (with whatever eval sorcery you decide to use)
