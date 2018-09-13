@@ -81,32 +81,57 @@ PARAMS are used to render FORMS."
          (context '(rem--prev-hash rem--next-hash rem--deps-stack)))
     `(progn
        (defun ,fn ,(append context params)
-         (push (cons ',name ',params) (car rem--deps-stack))
-         (-if-let* ((component (ht-get rem--prev-hash ',name))
-                    (memoized (ht-get component ',params)))
-             (progn
-               (rem--copy-memo rem--prev-hash rem--next-hash ',name ',params)
-               (car memoized))
-           (push nil rem--deps-stack)
-           (let ((result (progn ,docstring ,@forms)))
-             (ht-set! (rem--child-ht rem--next-hash ',name) ',params
-                      (cons result (pop rem--deps-stack)))
-             result)))
+         (let ((args (list ,@params)))
+           (push (cons ',name args) (car rem--deps-stack))
+           (when (eq ',name 'entry)
+             (pp rem--prev-hash)
+             (pp rem--next-hash)
+             (pp rem--deps-stack))
+           (-if-let* ((component (ht-get rem--prev-hash ',name))
+                      (memoized (ht-get component args)))
+               (prog1 (car memoized)
+                 (rem--copy-memo rem--prev-hash rem--next-hash ',name args))
+             (push nil rem--deps-stack)
+             (let ((result (progn ,docstring ,@forms)))
+               (ht-set! (rem--child-ht rem--next-hash ',name) args
+                        (cons result (pop rem--deps-stack)))
+               result))))
        (defmacro ,name ,params
          ,(if (stringp docstring) docstring)
          (let ((fn ',fn) (context ',context) (args (list ,@params)))
            `(,fn ,@context ,@args))))))
 
 (rem-defcomponent entry (e)
+  (print (format "entry called with %s" e))
   (format "%s: %s." (car e) (cdr e)))
 
+(defun entry--fn (rem--prev-hash rem--next-hash rem--deps-stack e)
+  (let ((args (list e)))
+    (push (cons (quote entry) args) (car rem--deps-stack))
+    (-if-let* ((component (ht-get rem--prev-hash (quote entry)))
+               ;; for entry with args (("title-0" . "description-0")) it returned nil
+               ;; although it was right there in component hash table!
+               (memoized (ht-get component args)))
+        (prog1 (car memoized)
+          (rem--copy-memo rem--prev-hash rem--next-hash (quote entry) args))
+      (push nil rem--deps-stack)
+      (let ((result (progn
+                      (print (format "entry called with %s" e))
+                      (format "%s: %s." (car e) (cdr e)))))
+        (ht-set! (rem--child-ht rem--next-hash (quote entry))
+                 args (cons result (pop rem--deps-stack)))
+        result))))
+
 (rem-defcomponent entry-list (entries)
+  ;;(print (format "entry list called"))
   (s-join "\n" (--map (entry it) entries)))
 
 (rem-defcomponent header ()
+  ;;(print (format "header called"))
   "Hello!")
 
 (rem-defcomponent body (entries)
+  ;;(print (format "body called"))
   (concat (header) (entry-list entries)))
 
 (rem-defview view ()
@@ -118,9 +143,9 @@ PARAMS are used to render FORMS."
 (defun add-entry ()
   (setq entries (cons (cons (format "title-%s" i) (format "description-%s" i)) entries))
   (setq i (+ i 1))
-  (print (view)))
+  (view))
 
-(add-entry)
+;; (add-entry)
 
 ;; (rem-bind "*my-buffer*" 'my-view '(action1 action2))
 
