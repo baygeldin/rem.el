@@ -40,12 +40,12 @@ PARAMS are used to render FORMS."
   (declare (indent defun))
   `(let ((rem--prev-hash (ht-create))
          (rem--next-hash (ht-create))
-         (rem--deps-stack nil))
+         (rem--deps-stack '(nil)))
      (defun ,name ,params
        ,(if (stringp docstring) docstring)
        (prog1 (progn ,docstring ,@forms)
-         (setq rem--prev-hash rem--next-hash)
-         (setq rem--next-hash (make-hash-table :size (ht-size rem--prev-hash)))))))
+         (setq rem--prev-hash rem--next-hash rem--deps-stack '(nil)
+               rem--next-hash (make-hash-table :size (ht-size rem--prev-hash)))))))
 
 (defun vertical-concat (a b)
   "vertical concat"
@@ -77,44 +77,49 @@ It copies results of rendering component NAME with PARAMS along with its depende
   "Define NAME as a new component with an optional DOCSTRING.
 PARAMS are used to render FORMS."
   (declare (indent defun))
+  
   (let* ((fn (intern (format "%s--fn" name)))
-         (context '(rem--prev-hash rem--next-hash rem--deps-stack))
-         (full-params (append context params)))
+         (context '(rem--prev-hash rem--next-hash rem--deps-stack)))
     `(progn
-       (defun ,fn ,full-params
-         (push (cons ,name ,params) (car rem--deps-stack))
-         (-if-let* ((component (ht-get rem--prev-hash ,name))
-                    (memoized (ht-get component ,params)))
+       (defun ,fn ,(append context params)
+         (push (cons ',name ',params) (car rem--deps-stack))
+         (-if-let* ((component (ht-get rem--prev-hash ',name))
+                    (memoized (ht-get component ',params)))
              (progn
-               (rem--copy-memo rem--prev-hash rem--next-hash ,name ,params)
+               (rem--copy-memo rem--prev-hash rem--next-hash ',name ',params)
                (car memoized))
            (push nil rem--deps-stack)
            (let ((result (progn ,docstring ,@forms)))
-             (ht-set! (rem--child-ht rem--next-hash ,name) ,params
+             (ht-set! (rem--child-ht rem--next-hash ',name) ',params
                       (cons result (pop rem--deps-stack)))
              result)))
        (defmacro ,name ,params
+         ;; here params are for documentation...
+         ;; but for each param here we have to get its data and merge with context params
+         ;; smth like (-map 'symbol-value ',params) but that works with lexical value
          ,(if (stringp docstring) docstring)
-         `(,fn ,@full-params)))))
+         ;; NOTE: possibly exploiting a bug here:
+         ;; https://stackoverflow.com/questions/17394638/nesting-backquote-and-in-emacs-lisp
+         '(,fn ,@context ,@(--map (intern (format ",%s" it)) params))
+         ))))
 
-(defmacro kek ()
-  `(progn
-     (defun foo (a b)
-       (+ a b))
-     (defmacro lol ()
-       (let ((sym 'b))
-         `(foo 1 ,sym)))))
+(defmacro foo (params)
+  (let ((shit (--map (intern (format ",%s" it)) params)))
+    `(progn
+       (defun bar--fn ,(append '(prefix) params)
+         (format "I got your prefix %s" prefix))
+       (defmacro bar ,params
+         (backquote (bar--fn prefix ,@shit))))))
 
-(kek)
-
-(let ((b 2))
-  (lol))
+(foo (a b c))
+(let ((prefix 1))
+  (bar 1 2 3))
 
 (rem-defcomponent entry (e)
   (format "%s: %s." (car e) (cdr e)))
 
 (rem-defcomponent entry-list (entries)
-  (s-join "\n" (--map (entry it) entries))
+  (s-join "\n" (--map (entry it) entries)))
 
 (rem-defcomponent header ()
   "Hello!")
@@ -123,7 +128,7 @@ PARAMS are used to render FORMS."
   (concat (header) (entry-list entries)))
 
 (rem-defview view ()
-  body(entries))
+  (body entries))
 
 (setq entries nil)
 (setq i 0)
@@ -135,7 +140,7 @@ PARAMS are used to render FORMS."
 
 (add-entry)
 
-(rem-bind "*my-buffer*" 'my-view '(action1 action2))
+;; (rem-bind "*my-buffer*" 'my-view '(action1 action2))
 
 (provide 'org-retention)
 
