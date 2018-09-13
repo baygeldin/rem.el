@@ -116,25 +116,13 @@ PARAMS are used to render FORMS."
 
 (defmacro foo (params)
   `(defmacro bar ,params
-     (let ((args (list ,@params)))
-       `(bar--fn prefix ,@args))))
+     `(bar--fn prefix ,@(list ,@params))))
 (foo (a b c))
 (macroexpand '(foo (a b c)))
 (defun bar--fn (prefix a b c)
   (format "%s %s %s %s" prefix a b c))
 (bar 1 2 3)
 (macroexpand '(bar 1 2 3))
-;; if nested macro won't be able to output actual values it receives
-;; then values are practically lost and there's now way to retrieve
-;; (with whatever eval sorcery you decide to use)
-
-(foo (a b c))
-(let ((prefix 1))
-  (bar 1 2 3))
-(macroexpand '(bar 1 2 3))
-(setq params '(a b c))
-(eval ``(bar-fn prefix ,@,params))
-(eval (print ``(a ,,(+ 1 2))))
 
 (rem-defcomponent entry (e)
   (format "%s: %s." (car e) (cdr e)))
