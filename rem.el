@@ -35,7 +35,7 @@
   (message "%s" msg))
 
 (defmacro rem-defview (name params &optional docstring &rest forms)
-  "Define NAME as a new view with optional DOCSTRING.
+  "Define NAME as a new view with an optional DOCSTRING.
 PARAMS are used to render FORMS."
   (declare (indent defun))
   `(let ((rem--prev-hash (ht-create))
@@ -45,7 +45,7 @@ PARAMS are used to render FORMS."
        ,(if (stringp docstring) docstring)
        (prog1 (progn ,docstring ,@forms)
          (setq rem--prev-hash rem--next-hash)
-         (setq rem--next-hash (make-hash-table :size (ht-size rem-prev-hash)))))))
+         (setq rem--next-hash (make-hash-table :size (ht-size rem--prev-hash)))))))
 
 (defun vertical-concat (a b)
   "vertical concat"
@@ -55,8 +55,26 @@ PARAMS are used to render FORMS."
     (s-join "\n" (--map (concat (s-pad-right amax " " (car it)) (cdr it))
                         (-zip-fill (s-repeat amax " ") asplit bsplit)))))
 
+(defun rem--child-ht (parent name &rest params)
+  "Get child hash table of PARENT by NAME or create it with PARAMS."
+  (or (ht-get parent name)
+      (let ((child (apply 'make-hash-table params)))
+        (ht-set! parent name child)
+        child)))
+
+(defun rem--copy-memo (prev-hash next-hash name params)
+  "Copy memoized data from PREV-HASH to NEW-HASH.
+It copies results of rendering component NAME with PARAMS along with its dependencies."
+  (let* ((prev-component (ht-get prev-hash name))
+         (next-component (rem--child-ht next-hash name
+                                     :size (ht-size prev-component)))
+         (memoized (ht-get prev-component params)))
+    (ht-set! next-component params memoized)
+    (dolist (dependency (cdr memoized))
+      (rem--copy-memo prev-hash next-hash (car dependency) (cdr dependency)))))
+
 (defmacro rem-defcomponent (name params &optional docstring &rest forms)
-  "Define NAME as a new component with optional DOCSTRING.
+  "Define NAME as a new component with an optional DOCSTRING.
 PARAMS are used to render FORMS."
   (declare (indent defun))
   (let* ((fn (concat name "--fn"))
@@ -66,25 +84,17 @@ PARAMS are used to render FORMS."
     `(progn
        (defun ,fn ,full-params
          (when-let ((deps (car rem--deps-stack)))
-           (push (list ,name ,params) deps))
-         (if-let* ((component (ht-get rem--prev-hash ,name))
-                   (memoized (ht-get component ,params)))
-             ;;(ht-get rem--next-hash ,name)
-             (ht-set! rem--next-hash ,name (make-hash-table :size (ht-size component)))
-             ;;(ht-set! newhash ,params memoized)
-           ())
-         ;;
-         ;; if current hash contains name -> params
-         ;;    add memoized result + deps to new hash
-         ;;    recursively do the same thing for all name -> params in deps
-         ;;    return result
-         ;; else
-         ;;    add new list to deps stack
-         ;;    call form, get result
-         ;;    pop deps list from stack
-         ;;    add current name -> params with result and deps to new hash
-         ;;    return result
-         )
+           (push (cons ,name ,params) deps))
+         (-if-let* ((component (ht-get rem--prev-hash ,name))
+                    (memoized (ht-get component ,params)))
+             (progn
+               (rem--copy-memo rem--prev-hash rem--next-hash ,name ,params)
+               (car memoized))
+           (push '() rem--deps-stack)
+           (let ((result (progn ,docstring ,@forms)))
+             (ht-set! (rem--child-ht rem--next-hash ,name) ,params
+                      (cons result (pop rem--deps-stack)))
+             result)))
        (defmacro ,name ,params ,(if (stringp docstring) docstring) ,form))))
 
 (rem-defcomponent entry (e)
