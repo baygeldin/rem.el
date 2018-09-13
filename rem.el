@@ -77,7 +77,6 @@ It copies results of rendering component NAME with PARAMS along with its depende
   "Define NAME as a new component with an optional DOCSTRING.
 PARAMS are used to render FORMS."
   (declare (indent defun))
-  
   (let* ((fn (intern (format "%s--fn" name)))
          (context '(rem--prev-hash rem--next-hash rem--deps-stack)))
     `(progn
@@ -94,35 +93,9 @@ PARAMS are used to render FORMS."
                       (cons result (pop rem--deps-stack)))
              result)))
        (defmacro ,name ,params
-         ;; here params are for documentation...
-         ;; but for each param here we have to get its data and merge with context params
-         ;; smth like (-map 'symbol-value ',params) but that works with lexical value
          ,(if (stringp docstring) docstring)
-         ;; NOTE: possibly exploiting a bug here:
-         ;; https://stackoverflow.com/questions/17394638/nesting-backquote-and-in-emacs-lisp
-         '(,fn ,@context ,@(--map (intern (format ",%s" it)) params))
-         ))))
-
-(defmacro foo (params)
-  (let ((shit (--map (intern (format ",%s" it)) params))
-        (fuck `(bar--fn prefix ,@params)))
-    `(progn
-       (defun bar--fn ,(append '(prefix) params)
-         (format "I got your prefix %s" prefix))
-       (defmacro bar ,params
-         '(bar--fn prefix )
-         '(apply 'bar--fn (append '(prefix) (--map (eval it t) (quote ,params))))))))
-
-
-(defmacro foo (params)
-  `(defmacro bar ,params
-     `(bar--fn prefix ,@(list ,@params))))
-(foo (a b c))
-(macroexpand '(foo (a b c)))
-(defun bar--fn (prefix a b c)
-  (format "%s %s %s %s" prefix a b c))
-(bar 1 2 3)
-(macroexpand '(bar 1 2 3))
+         (let ((fn ',fn) (context ',context) (args (list ,@params)))
+           `(,fn ,@context ,@args))))))
 
 (rem-defcomponent entry (e)
   (format "%s: %s." (car e) (cdr e)))
