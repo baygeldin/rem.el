@@ -77,38 +77,63 @@ It copies results of rendering component NAME with PARAMS along with its depende
   "Define NAME as a new component with an optional DOCSTRING.
 PARAMS are used to render FORMS."
   (declare (indent defun))
-  (let* ((fn (concat name "--fn"))
+  (let* ((fn (intern (format "%s--fn" name)))
          (context '(rem--prev-hash rem--next-hash rem--deps-stack))
-         (full-params (append context params))
-         (form `(,fn ,full-params)))
+         (full-params (append context params)))
     `(progn
        (defun ,fn ,full-params
-         (when-let ((deps (car rem--deps-stack)))
-           (push (cons ,name ,params) deps))
+         (push (cons ,name ,params) (car rem--deps-stack))
          (-if-let* ((component (ht-get rem--prev-hash ,name))
                     (memoized (ht-get component ,params)))
              (progn
                (rem--copy-memo rem--prev-hash rem--next-hash ,name ,params)
                (car memoized))
-           (push '() rem--deps-stack)
+           (push nil rem--deps-stack)
            (let ((result (progn ,docstring ,@forms)))
              (ht-set! (rem--child-ht rem--next-hash ,name) ,params
                       (cons result (pop rem--deps-stack)))
              result)))
-       (defmacro ,name ,params ,(if (stringp docstring) docstring) ,form))))
+       (defmacro ,name ,params
+         ,(if (stringp docstring) docstring)
+         `(,fn ,@full-params)))))
+
+(defmacro kek ()
+  `(progn
+     (defun foo (a b)
+       (+ a b))
+     (defmacro lol ()
+       (let ((sym 'b))
+         `(foo 1 ,sym)))))
+
+(kek)
+
+(let ((b 2))
+  (lol))
 
 (rem-defcomponent entry (e)
-               (concat (entry-title e) (entry-desc e)))
+  (format "%s: %s." (car e) (cdr e)))
 
-(rem-defcomponent list (entries)
-               (--map-indexed (entry it) entries))
+(rem-defcomponent entry-list (entries)
+  (s-join "\n" (--map (entry it) entries))
 
 (rem-defcomponent header ()
-               "Hello!")
+  "Hello!")
 
-(rem-defcomponent body (store)
-               (concat (header) (list (plist-get store :entries))))
+(rem-defcomponent body (entries)
+  (concat (header) (entry-list entries)))
 
+(rem-defview view ()
+  body(entries))
+
+(setq entries nil)
+(setq i 0)
+
+(defun add-entry ()
+  (setq entries (cons (cons (format "title-%s" i) (format "description-%s" i)) entries))
+  (setq i (+ i 1))
+  (print (view)))
+
+(add-entry)
 
 (rem-bind "*my-buffer*" 'my-view '(action1 action2))
 
