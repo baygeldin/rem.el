@@ -51,7 +51,7 @@ Additional arguments are specified as keyword/argument pairs."
       ;; NOTE: not sure if 'equal test method is the best option here.
       ;; Since components are supposed to be pure, it should be enough
       ;; to compare keys in params hash table (i.e. lists of params)
-      ;; shallowly, but 'equal seems to be deep. Requires investigation.   
+      ;; shallowly, but 'equal seems to be deep. Requires investigation.
       (let ((params (apply 'make-hash-table :test 'equal keyword-args)))
         (ht-set! root component params)
         params)))
@@ -128,7 +128,28 @@ PARAMS are used to render FORMS."
   (setq i (+ i 1))
   (view))
 
-(add-entry)
+;; (add-entry)
+
+(defun rem-update (buffer view &optional point)
+  "Update BUFFER with VIEW.
+If BUFFER doesn't exist, create one.
+Optionally set pointer to POINT after update.
+POINT can either be an integer or (row . column) cons."
+  (with-current-buffer (get-buffer-create buffer)
+    (let ((inhibit-read-only t))
+      (erase-buffer)
+      (insert (view))
+      (if (integer-or-marker-p point))
+      ;; blabla. customize restoring pointer as it's the only view element we're handling by ourself.
+      (forward-line row)
+      (forward-char col)
+      )))
+
+(defun rem-bind (buffer view actions)
+  "Advise `rem-update' for BUFFER and VIEW after ACTIONS."
+  (let ((handler (lambda () (rem-update buffer view (cons (line-number-at-pos)
+                                                       (current-column))))))
+    (dolist (fn actions) (advice-add fn :after handler))))
 
 ;; (rem-bind "*my-buffer*" 'my-view '(action1 action2))
 
