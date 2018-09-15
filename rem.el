@@ -129,30 +129,35 @@ PARAMS are used to render FORMS."
   (setq i (+ i 1))
   (view))
 
-;; (add-entry)
+(add-entry)
 
-(defun rem-update (buffer view &optional point)
-  "Update BUFFER with VIEW.
+(defun rem-update (buffer view &optional save-point)
+  "Replace BUFFER contents with the result of calling VIEW.
 If BUFFER doesn't exist, create one.
-Optionally set pointer to POINT after update.
-POINT can either be an integer or (row . column) cons."
+SAVE-POINT is a function that is called right before updating buffer contents
+and returns an integer, a (row . column) cons or a lambda that returns one of these.
+In case SAVE-POINT returned a lambda, it's called right after updating buffer contents.
+The result is used to set the pointer. By default it restores previous row and column."
   (with-current-buffer (get-buffer-create buffer)
-    (let ((inhibit-read-only t))
+    (let ((inhibit-read-only t)
+          (pos (if save-point (save-point)
+                   (cons (line-number-at-pos) (current-column)))))
       (erase-buffer)
-      (insert (view))
-      (if (integer-or-marker-p point))
-      ;; blabla. customize restoring pointer as it's the only view element we're handling by ourself.
-      (forward-line row)
-      (forward-char col)
-      )))
+      (insert (funcall view))
+      (let ((pos (if (functionp pos) (pos) pos)))
+        (if (integerp pos) (goto-char pos)
+          (goto-char (point-min))
+          (forward-line (1- (car pos)))
+          (ignore-errors (forward-char (cdr pos)))))
+      (let ((p (point)))
+        (--each (get-buffer-window-list buffer) (set-window-point it p))))))
 
-(defun rem-bind (buffer view actions)
-  "Advise `rem-update' for BUFFER and VIEW after ACTIONS."
-  (let ((handler (lambda () (rem-update buffer view (cons (line-number-at-pos)
-                                                       (current-column))))))
+(defun rem-bind (buffer view actions &optional save-point)
+  "Advise `rem-update' for BUFFER, VIEW and optional SAVE-POINT after ACTIONS."
+  (let ((handler (lambda () (rem-update buffer view save-point))))
     (dolist (fn actions) (advice-add fn :after handler))))
 
-;; (rem-bind "*my-buffer*" 'my-view '(action1 action2))
+(rem-bind "*my-buffer*" 'view '(add-entry))
 
 (provide 'org-retention)
 
