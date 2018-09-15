@@ -72,10 +72,11 @@ It copies results of rendering component NAME with PARAMS along with its depende
 PARAMS are used to render FORMS."
   (declare (indent defun))
   (let* ((fn (intern (format "%s--fn" name)))
-         (context '(rem--prev-hash rem--next-hash rem--deps-stack)))
+         (context '(rem--prev-hash rem--next-hash rem--deps-stack))
+         (refs (--remove (or (eq it '&optional) (eq it '&rest)) params)))
     `(progn
-       (defun ,fn ,(append context params)
-         (let ((args (list ,@params)))
+       (defun ,fn ,(append context refs)
+         (let ((args (list ,@refs)))
            (push (cons ',name args) (car rem--deps-stack))
            (-if-let* ((component (ht-get rem--prev-hash ',name))
                       (memoized (ht-get component args)))
@@ -88,7 +89,7 @@ PARAMS are used to render FORMS."
                result))))
        (defmacro ,name ,params
          ,(if (stringp docstring) docstring)
-         (let ((fn ',fn) (context ',context) (args (list ,@params)))
+         (let ((fn ',fn) (context ',context) (args (list ,@refs)))
            `(,fn ,@context ,@args))))))
 
 ;; Components
