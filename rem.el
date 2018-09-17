@@ -29,20 +29,8 @@
 (require 's)
 (require 'ht)
 
-;; Core
+;; Private
 
-(defmacro rem-defview (name params &optional docstring &rest forms)
-  "Define NAME as a new view with an optional DOCSTRING.
-PARAMS are used to render FORMS."
-  (declare (indent defun))
-  `(let ((rem--prev-hash (ht-create))
-         (rem--next-hash (ht-create))
-         (rem--deps-stack '(nil)))
-     (defun ,name ,params
-       ,(if (stringp docstring) docstring)
-       (prog1 (progn ,docstring ,@forms)
-         (setq rem--prev-hash rem--next-hash rem--deps-stack '(nil)
-               rem--next-hash (make-hash-table :size (ht-size rem--prev-hash)))))))
 (defun rem--s-center (len padding s)
   "If S is shorter than LEN, pad it with PADDING so it is centered."
   (declare (pure t) (side-effect-free t))
@@ -69,21 +57,44 @@ Additional arguments are specified as keyword/argument pairs."
 It copies results of rendering component NAME with PARAMS along with its dependencies."
   (let* ((prev-component (ht-get prev-hash name))
          (next-component (rem--params-ht next-hash name
-                                     :size (ht-size prev-component)))
+                                      :size (ht-size prev-component)))
          (memoized (ht-get prev-component params)))
     (ht-set! next-component params memoized)
     (dolist (dependency (cdr memoized))
       (rem--copy-memo prev-hash next-hash (car dependency) (cdr dependency)))))
 
+;; Core
+
+;;;###autoload
+(defmacro rem-defview (name params &optional docstring &rest forms)
+  "Define NAME as a new view with an optional DOCSTRING.
+PARAMS are used to render FORMS."
+  (declare (indent defun)
+           (doc-string 2)
+           (debug (&define name lambda-list [&optional stringp] def-body)))
+  `(let ((rem--prev-hash (ht-create))
+         (rem--next-hash (ht-create))
+         (rem--deps-stack '(nil)))
+     (defun ,name ,params
+       ,(if (stringp docstring) docstring)
+       (prog1 (progn ,docstring ,@forms)
+         (setq rem--prev-hash rem--next-hash rem--deps-stack '(nil)
+               rem--next-hash (make-hash-table :size (ht-size rem--prev-hash)))))))
+
+;;;###autoload
 (defmacro rem-defcomponent (name params &optional docstring &rest forms)
   "Define NAME as a new component with an optional DOCSTRING.
 PARAMS are used to render FORMS."
-  (declare (indent defun))
-  (let* ((fn (intern (format "%s--fn" name)))
+  (declare (indent defun)
+           (doc-string 2)
+           (debug (&define symbolp lambda-list [&optional stringp] def-body)))
+  (let* ((render (intern (format "%s-render" name)))
+         (handler (intern (format "%s--handler" name)))
          (context '(rem--prev-hash rem--next-hash rem--deps-stack))
          (refs (--remove (or (eq it '&optional) (eq it '&rest)) params)))
     `(progn
-       (defun ,fn ,(append context refs)
+       (defun ,render ,params ,docstring ,@forms)
+       (defun ,handler ,(append context refs)
          (let ((args (list ,@refs)))
            (push (cons ',name args) (car rem--deps-stack))
            (-if-let* ((component (ht-get rem--prev-hash ',name))
@@ -91,14 +102,14 @@ PARAMS are used to render FORMS."
                (prog1 (car memoized)
                  (rem--copy-memo rem--prev-hash rem--next-hash ',name args))
              (push nil rem--deps-stack)
-             (let ((result (progn ,docstring ,@forms)))
+             (let ((result (apply ',render args)))
                (ht-set! (rem--params-ht rem--next-hash ',name) args
                         (cons result (pop rem--deps-stack)))
                result))))
        (defmacro ,name ,params
          ,(if (stringp docstring) docstring)
-         (let ((fn ',fn) (context ',context) (args (list ,@refs)))
-           `(,fn ,@context ,@args))))))
+         (let ((handler ',handler) (context ',context) (args (list ,@refs)))
+           `(,handler ,@context ,@args))))))
 
 ;; Components
 
