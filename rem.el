@@ -43,6 +43,14 @@ PARAMS are used to render FORMS."
        (prog1 (progn ,docstring ,@forms)
          (setq rem--prev-hash rem--next-hash rem--deps-stack '(nil)
                rem--next-hash (make-hash-table :size (ht-size rem--prev-hash)))))))
+(defun rem--s-center (len padding s)
+  "If S is shorter than LEN, pad it with PADDING so it is centered."
+  (declare (pure t) (side-effect-free t))
+  (let* ((extra (max 0 (- len (length s))))
+         (char (string-to-char padding))
+         (left (make-string (ceiling extra 2) char))
+         (right (make-string (floor extra 2) char)))
+    (concat left s right)))
 
 (defun rem--params-ht (root component &rest keyword-args)
   "Get hash table with params for COMPONENT in ROOT hash table.
@@ -96,6 +104,16 @@ PARAMS are used to render FORMS."
 
 (rem-defcomponent rem-vconcat (left right)
   "Concatenate LEFT and RIGHT blocks of text vertically."
+(rem-defcomponent rem-block (content &optional align filler)
+  "Pad each line of CONTENT with a white-space to form a rectangular.
+ALIGN defines how padding is done (either 'left, 'right or 'center).
+FILLER is a character that is used to pad text (white-space by default)."
+  (let* ((lines (s-lines content))
+         (length (-max (-map 'length lines)))
+         (pad (case align ('right 's-pad-left) ('center 'rem--s-center) (t 's-pad-right)))
+         (filler (or filler " ")))
+    (s-join "\n" (--map (funcall pad length filler it) lines))))
+
   (let* ((left-lines (s-lines left))
          (right-lines (s-lines right))
          (left-max (-max (-map 'length left-lines))))
