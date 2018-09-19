@@ -40,6 +40,28 @@
          (right (make-string (floor extra 2) char)))
     (concat left s right)))
 
+(defun rem--align-string (dir len padding s)
+  "Align S according to DIR, truncate to LEN and pad it with PADDING if necessary."
+  (cond ((eq dir 'right) (s-right len (s-pad-left len padding s)))
+        ((eq dir 'left) (s-left len (s-pad-right len padding s)))
+        (t (let* ((s (rem--s-center len padding s))
+                  (start (floor (- (length s) len) 2)))
+             (substring s start (+ start len))))))
+
+(defun rem--align-array (dir len a)
+  "Align A according to DIR, truncate to LEN and pad it with nil if necessary."
+  (let ((extra (max 0 (- len (length a)))))
+    (if (eq dir 'middle)
+        (let* ((left (make-list (floor extra 2) nil))
+               (right (make-list (ceiling extra 2) nil))
+               (a (append left a right))
+               (start (floor (- (length a) len) 2)))
+          (-slice a start (+ start len)))
+      (let ((filler (make-list extra nil)))
+        (if (eq dir 'bottom)
+            (-take-last len (append filler a))
+          (-take len (append a filler)))))))
+
 (defun rem--params-ht (root component &rest keyword-args)
   "Get hash table with params for COMPONENT in ROOT hash table.
 Additional arguments are specified as keyword/argument pairs."
@@ -113,52 +135,82 @@ PARAMS are used to render FORMS."
 
 ;; Components
 
-(rem-defcomponent rem-vconcat (left right)
-  "Concatenate LEFT and RIGHT blocks of text vertically."
-(rem-defcomponent rem-block (content &optional align filler)
-  "Pad each line of CONTENT with a white-space to form a rectangular.
-ALIGN defines how padding is done (either 'left, 'right or 'center).
-FILLER is a character that is used to pad text (white-space by default)."
-  (let* ((lines (s-lines content))
-         (length (-max (-map 'length lines)))
-         (pad (case align ('right 's-pad-left) ('center 'rem--s-center) (t 's-pad-right)))
-         (filler (or filler " ")))
-    (s-join "\n" (--map (funcall pad length filler it) lines))))
+(rem-defcomponent rem-block (content &rest keyword-args)
+  "A rectangular text block with CONTENT.
 
+Arguments are specified as keyword/argument pairs:
+
+:halign HALIGN -- defines horizontal alignment (either 'left, 'right or 'middle).
+:valign VALID -- defines vertical alignment (eigher 'top, 'bottom or 'middle)
+:filler FILLER -- a character that is used to fill space (white-space by default).
+:props PROPS -- overrides text properties for content (nil by default).
+:border BORDER -- either an integer or a plist with integers (e.g. '(:top 5 :left 10)).
+:border-filler BORDER-FILLER -- a character that is used to fill border (white-space by default).
+:border-props BORDER-PROPS -- border text properties (nil by default).
+:height HEIGHT -- block's height (derived automatically by default).
+:width WIDTH -- block's width (derived automatically by default).
+:max-height MAX-HEIGHT -- block's max height (not limited by default).
+:max-width MAX-WIDTH -- block's max width (not limited by default).
+:min-height MIN-HEIGHT -- block's min height (not limited by default).
+:min-width MIN-WIDTH  -- block's min width (not limited by default).
+:wrap-words WRAP-WORDS -- whether to wrap long sentences (t by default)."
+  (macrolet ((key (keyword) `(plist-get keyword-args ,keyword)))
+    (let* ((content (if (key :wrap-words)
+                        (s-word-wrap (or (key :width) (key :max-width)) content)
+                      content))
+           (lines (s-lines content))
+           (halign (or (key :halign) 'left))
+           (valign (or (key :valign) 'top))
+           (filler (or (key :filler) " "))
+           (border-filler (or (key :border-filler) " "))
+           (props (key :props))
+           (border-props (key :border-filler))
+           (content-height (length lines))
+           (content-width (-max (-map 'length lines)))
+           (max-height (or (key :max-height) content-height))
+           (min-height (or (key :min-height) content-height))
+           (max-width (or (key :max-width) content-width))
+           (min-width (or (key :min-width) content-width))
+           (height (or (key :height) (max min-height (min max-height content-height))))
+           (width (or (key :width) (max min-width (min max-width content-width)))))
+      (s-join "\n" (--map (rem--align-string halign width filler it)
+                          (rem--align-array valign height lines))))))
+
+(rem-defcomponent rem-join (&rest blocks)
+  "Join BLOCKS of text vertically line-by-line."
   (let* ((left-lines (s-lines left))
          (right-lines (s-lines right))
          (left-max (-max (-map 'length left-lines))))
     (s-join "\n" (--map (concat (s-pad-right left-max " " (car it)) (cdr it))
                         (-zip-fill (s-repeat left-max " ") left-lines right-lines)))))
 
-(rem-defcomponent entry (e)
-  (print (format "entry called with %s" e))
-  (format "%s: %s." (car e) (cdr e)))
+(defun rem-padding (content size &optional filler)
+  "Add PADDING of SIZE to CONTENT with an optional FACE.
+PADDING is either an integer or a plist with integers (e.g. '(:top 5 :left 10))."
+  (cl-flet ((get-size (direction)
+                      (abs (or (and (integerp size) size)
+                               (plist-get size direction) 0)))
+            (get-filler (length) (propertize (s-repeat length padding) 'face face))
+            (n-join (list) (s-join "\n" list)))
+    (let* ((top (get-size :top)) (bottom (get-size :bottom))
+           (right (* 2 (get-size :right))) (left (* 2 (get-size :left)))
+           (lines (s-lines content))
+           (max (-max (-map 'length lines)))
+           (filler (get-filler (+ left max right)))
+           (left-filler (get-filler left))
+           (right-filler (get-filler right)))
+      (n-join (list (n-join (make-list top filler))
+                    (n-join (--map (concat left-filler (s-pad-right max padding it) right-filler) lines))
+                    (n-join (make-list bottom filler)))))))
 
-(rem-defcomponent entry-list (entries)
-  (print (format "entry list called"))
-  (s-join "\n" (--map (entry it) entries)))
+;; (rem-defcomponent rem-table (component))
 
-(rem-defcomponent header ()
-  (print (format "header called"))
-  "Hello!")
+(with-current-buffer "*my-buffer*"
+  (erase-buffer)
+  ;; (insert (rem-padding "hello\nbih" -1 '(:background "pink")))
+  (insert (propertize (concat "he " (propertize "man" 'face 'italic)) 'face 'bold)))
 
-(rem-defcomponent body (entries)
-  (print (format "body called"))
-  (concat (header) (entry-list entries)))
-
-(rem-defview view ()
-  (body entries))
-
-(setq entries nil)
-(setq i 0)
-
-(defun add-entry ()
-  (setq entries (cons (cons (format "title-%s" i) (format "description-%s" i)) entries))
-  (setq i (+ i 1))
-  (view))
-
-(add-entry)
+;; Helpers
 
 (defun rem-update (buffer view &optional save-point)
   "Replace BUFFER contents with the result of calling VIEW.
@@ -170,7 +222,7 @@ The result is used to set the pointer. By default it restores previous row and c
   (with-current-buffer (get-buffer-create buffer)
     (let ((inhibit-read-only t)
           (pos (if save-point (save-point)
-                   (cons (line-number-at-pos) (current-column)))))
+                 (cons (line-number-at-pos) (current-column)))))
       (erase-buffer)
       (insert (funcall view))
       (let ((pos (if (functionp pos) (pos) pos)))
@@ -186,7 +238,38 @@ The result is used to set the pointer. By default it restores previous row and c
   (let ((handler (lambda () (rem-update buffer view save-point))))
     (dolist (fn actions) (advice-add fn :after handler))))
 
+;; Playground
+
+(rem-defcomponent entry (e)
+  (print (format "entry called with %s" e))
+  (format "%s: %s." (propertize (car e) 'italic) (cdr e)))
+
+(rem-defcomponent entry-list (entries)
+  (print (format "entry list called"))
+  (s-join "\n" (--map (entry it) entries)))
+
+(rem-defcomponent header ()
+  (print (format "header called"))
+  (propertize "Hello!" 'face '(:foreground "red")))
+
+(rem-defcomponent body (entries)
+  (print (format "body called"))
+  (concat (header) (entry-list entries)))
+
+(rem-defview view ()
+          (body entries))
+
+(setq entries nil)
+(setq i 0)
+
+(defun add-entry ()
+  (setq entries (cons (cons (format "title-%s" i) (format "description-%s" i)) entries))
+  (setq i (+ i 1))
+  (view))
+
 (rem-bind "*my-buffer*" 'view '(add-entry))
+
+(add-entry)
 
 (provide 'org-retention)
 
