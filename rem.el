@@ -62,6 +62,20 @@
             (-take-last len (append filler a))
           (-take len (append a filler)))))))
 
+(defun rem--border (content size filler props)
+  "Add BORDER of SIZE with PROPS to CONTENT."
+  (cl-flet ((get-size (dir) (abs (or (and (integerp size) size) (plist-get size dir) 0)))
+            (get-border (length) (apply 'propertize (s-repeat length filler) props))
+            (n-join (list) (s-join "\n" list)))
+    (let* ((top (get-size :top)) (bottom (get-size :bottom))
+           (right (* 2 (get-size :right))) (left (* 2 (get-size :left)))
+           (lines (s-lines content)) (len (length (car lines)))
+           (left-border (get-border left)) (right-border (get-border right))
+           (top-border (get-border (+ left len right))))
+      (n-join (list (n-join (make-list top top-border))
+                    (n-join (--map (concat left-border it right-border) lines))
+                    (n-join (make-list bottom top-border)))))))
+
 (defun rem--params-ht (root component &rest keyword-args)
   "Get hash table with params for COMPONENT in ROOT hash table.
 Additional arguments are specified as keyword/argument pairs."
@@ -154,17 +168,15 @@ Arguments are specified as keyword/argument pairs:
 :min-height MIN-HEIGHT -- block's min height (not limited by default).
 :min-width MIN-WIDTH  -- block's min width (not limited by default).
 :wrap-words WRAP-WORDS -- whether to wrap long sentences (t by default)."
-  (macrolet ((key (keyword) `(plist-get keyword-args ,keyword)))
-    (let* ((content (if (key :wrap-words)
-                        (s-word-wrap (or (key :width) (key :max-width)) content)
-                      content))
+  (cl-flet ((key (keyword) (plist-get keyword-args keyword)))
+    (let* ((wrap-words (and (member :wrap-words keyword-args)
+                            (not (key :wrap-words))))
+           (content (if (wrap-words) content
+                      (s-word-wrap (or (key :width) (key :max-width)) content)))
            (lines (s-lines content))
            (halign (or (key :halign) 'left))
            (valign (or (key :valign) 'top))
            (filler (or (key :filler) " "))
-           (border-filler (or (key :border-filler) " "))
-           (props (key :props))
-           (border-props (key :border-filler))
            (content-height (length lines))
            (content-width (-max (-map 'length lines)))
            (max-height (or (key :max-height) content-height))
@@ -173,8 +185,12 @@ Arguments are specified as keyword/argument pairs:
            (min-width (or (key :min-width) content-width))
            (height (or (key :height) (max min-height (min max-height content-height))))
            (width (or (key :width) (max min-width (min max-width content-width)))))
-      (s-join "\n" (--map (rem--align-string halign width filler it)
-                          (rem--align-array valign height lines))))))
+      (rem--border
+       (apply 'propertize
+              (s-join "\n" (--map (rem--align-string halign width filler it)
+                                  (rem--align-array valign height lines)))
+              (key :props))
+       (key :border) (or (key :border-filler) " ") (key :border-props)))))
 
 (rem-defcomponent rem-join (&rest blocks)
   "Join BLOCKS of text vertically line-by-line."
@@ -184,31 +200,16 @@ Arguments are specified as keyword/argument pairs:
     (s-join "\n" (--map (concat (s-pad-right left-max " " (car it)) (cdr it))
                         (-zip-fill (s-repeat left-max " ") left-lines right-lines)))))
 
-(defun rem-padding (content size &optional filler)
-  "Add PADDING of SIZE to CONTENT with an optional FACE.
-PADDING is either an integer or a plist with integers (e.g. '(:top 5 :left 10))."
-  (cl-flet ((get-size (direction)
-                      (abs (or (and (integerp size) size)
-                               (plist-get size direction) 0)))
-            (get-filler (length) (propertize (s-repeat length padding) 'face face))
-            (n-join (list) (s-join "\n" list)))
-    (let* ((top (get-size :top)) (bottom (get-size :bottom))
-           (right (* 2 (get-size :right))) (left (* 2 (get-size :left)))
-           (lines (s-lines content))
-           (max (-max (-map 'length lines)))
-           (filler (get-filler (+ left max right)))
-           (left-filler (get-filler left))
-           (right-filler (get-filler right)))
-      (n-join (list (n-join (make-list top filler))
-                    (n-join (--map (concat left-filler (s-pad-right max padding it) right-filler) lines))
-                    (n-join (make-list bottom filler)))))))
-
-;; (rem-defcomponent rem-table (component))
-
 (with-current-buffer "*my-buffer*"
   (erase-buffer)
   ;; (insert (rem-padding "hello\nbih" -1 '(:background "pink")))
-  (insert (propertize (concat "he " (propertize "man" 'face 'italic)) 'face 'bold)))
+  (insert (rem-block-render "hehe biiiih hello"
+                         :border '(:top 2 :bottom 2 :left 1 :right 1) :border-filler "f"
+                         :border-props '(face (:background "pink"))
+                         :min-height 5
+                         :width 10
+                         :valign 'middle
+                         :halign 'right)))
 
 ;; Helpers
 
@@ -257,7 +258,7 @@ The result is used to set the pointer. By default it restores previous row and c
   (concat (header) (entry-list entries)))
 
 (rem-defview view ()
-          (body entries))
+  (body entries))
 
 (setq entries nil)
 (setq i 0)
