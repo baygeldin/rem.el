@@ -48,16 +48,16 @@
                   (start (floor (- (length s) len) 2)))
              (substring s start (+ start len))))))
 
-(defun rem--align-array (dir len a)
-  "Align A according to DIR, truncate to LEN and pad it with nil if necessary."
+(defun rem--align-array (dir len padding a)
+  "Align A according to DIR, truncate to LEN and pad it with PADDING if necessary."
   (let ((extra (max 0 (- len (length a)))))
     (if (eq dir 'middle)
-        (let* ((left (make-list (floor extra 2) nil))
-               (right (make-list (ceiling extra 2) nil))
+        (let* ((left (make-list (floor extra 2) padding))
+               (right (make-list (ceiling extra 2) padding))
                (a (append left a right))
                (start (floor (- (length a) len) 2)))
           (-slice a start (+ start len)))
-      (let ((filler (make-list extra nil)))
+      (let ((filler (make-list extra padding)))
         (if (eq dir 'bottom)
             (-take-last len (append filler a))
           (-take len (append a filler)))))))
@@ -169,10 +169,11 @@ Arguments are specified as keyword/argument pairs:
 :min-width MIN-WIDTH  -- block's min width (not limited by default).
 :wrap-words WRAP-WORDS -- whether to wrap long sentences (t by default)."
   (cl-flet ((key (keyword) (plist-get keyword-args keyword)))
-    (let* ((wrap-words (and (member :wrap-words keyword-args)
-                            (not (key :wrap-words))))
-           (content (if (wrap-words) content
-                      (s-word-wrap (or (key :width) (key :max-width)) content)))
+    (let* ((content (if-let ((wrap-words (or (key :wrap-words)
+                                             (not (member :wrap-words keyword-args))))
+                             (width-limit (or (key :width) (key :max-width))))
+                        (s-word-wrap width-limit content)
+                      content))
            (lines (s-lines content))
            (halign (or (key :halign) 'left))
            (valign (or (key :valign) 'top))
@@ -188,28 +189,60 @@ Arguments are specified as keyword/argument pairs:
       (rem--border
        (apply 'propertize
               (s-join "\n" (--map (rem--align-string halign width filler it)
-                                  (rem--align-array valign height lines)))
+                                  (rem--align-array valign height nil lines)))
               (key :props))
        (key :border) (or (key :border-filler) " ") (key :border-props)))))
 
-(rem-defcomponent rem-join (&rest blocks)
-  "Join BLOCKS of text vertically line-by-line."
-  (let* ((left-lines (s-lines left))
-         (right-lines (s-lines right))
-         (left-max (-max (-map 'length left-lines))))
-    (s-join "\n" (--map (concat (s-pad-right left-max " " (car it)) (cdr it))
-                        (-zip-fill (s-repeat left-max " ") left-lines right-lines)))))
+(rem-defcomponent rem-join (direction align &rest blocks)
+  "Join BLOCKS of text and return a new block.
+
+Arguments are specified as keyword/argument pairs:
+
+:direction DIRECTION -- defines join direction (either 'row or 'column).
+:align ALIGN -- defines blocks alignment (either 'start, 'end or 'middle)."
+  (cl-flet ((align-cond (start end middle) (cond ((eq align 'start) start)
+                                                 ((eq align 'end) end)
+                                                 (t middle))))
+    (let ((blocks (-map 's-lines blocks)))
+      (if (eq direction 'column)
+          (let ((width (-max (--map (length (car it)) blocks)))
+                (pad (align-cond 's-pad-right 's-pad-left 'rem--s-center)))
+            (s-join "\n" (--map (funcall pad width " " it) (apply '-concat blocks))))
+        (let* ((height (-max (-map 'length blocks)))
+               (dir (align-cond 'top 'bottom 'middle))
+               (blocks (--map (rem--align-array
+                               dir height (s-repeat (length (car it)) " ") it)
+                              blocks)))
+          (s-join "\n" (--map (apply 's-concat
+                                     ;; NOTE: this inconsistency will be
+                                     ;; fixed in the upcoming dash.el release
+                                     (if (not (consp (cdr it)))
+                                         (list (car it) (cdr it))
+                                       it))
+                              (apply '-zip blocks))))))))
 
 (with-current-buffer "*my-buffer*"
   (erase-buffer)
   ;; (insert (rem-padding "hello\nbih" -1 '(:background "pink")))
-  (insert (rem-block-render "hehe biiiih hello"
-                         :border '(:top 2 :bottom 2 :left 1 :right 1) :border-filler "f"
-                         :border-props '(face (:background "pink"))
-                         :min-height 5
-                         :width 10
-                         :valign 'middle
-                         :halign 'right)))
+  (let ((b1 (rem-block-render "hehe biiiih hello"
+                           :border '(:top 2 :bottom 2 :left 1 :right 1) :border-filler "f"
+                           :border-props '(face (:background "pink"))
+                           :min-height 5
+                           :width 10
+                           :valign 'middle
+                           :halign 'right))
+        (b2 (rem-block-render "yeahyeah"
+                           :border 1
+                           ))
+        (b3 (rem-block-render "HAHAHHAHAH"
+                           :border 2
+                           :border-props '(face (:background "yellow"))
+                           )))
+    (insert (rem-join-render 'row 'end (rem-join-render 'column 'start b1 b2 b3) b1 b2))))
+
+(apply 'concat (cons "a" "b"))
+(apply 's-concat (list nil "a" "b"))
+(listp (cons "a" "b"))
 
 ;; Helpers
 
