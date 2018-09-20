@@ -221,29 +221,6 @@ Arguments are specified as keyword/argument pairs:
                                        it))
                               (apply '-zip blocks))))))))
 
-(with-current-buffer "*my-buffer*"
-  (erase-buffer)
-  ;; (insert (rem-padding "hello\nbih" -1 '(:background "pink")))
-  (let ((b1 (rem-block-render "hehe biiiih hello"
-                           :border '(:top 2 :bottom 2 :left 1 :right 1) :border-filler "f"
-                           :border-props '(face (:background "pink"))
-                           :min-height 5
-                           :width 10
-                           :valign 'middle
-                           :halign 'right))
-        (b2 (rem-block-render "yeahyeah"
-                           :border 1
-                           ))
-        (b3 (rem-block-render "HAHAHHAHAH"
-                           :border 2
-                           :border-props '(face (:background "yellow"))
-                           )))
-    (insert (rem-join-render 'row 'end (rem-join-render 'column 'start b1 b2 b3) b1 b2))))
-
-(apply 'concat (cons "a" "b"))
-(apply 's-concat (list nil "a" "b"))
-(listp (cons "a" "b"))
-
 ;; Helpers
 
 (defun rem-update (buffer view &optional save-point)
@@ -272,39 +249,6 @@ The result is used to set the pointer. By default it restores previous row and c
   (let ((handler (lambda () (rem-update buffer view save-point))))
     (dolist (fn actions) (advice-add fn :after handler))))
 
-;; Playground
-
-(rem-defcomponent entry (e)
-  (print (format "entry called with %s" e))
-  (format "%s: %s." (propertize (car e) 'italic) (cdr e)))
-
-(rem-defcomponent entry-list (entries)
-  (print (format "entry list called"))
-  (s-join "\n" (--map (entry it) entries)))
-
-(rem-defcomponent header ()
-  (print (format "header called"))
-  (propertize "Hello!" 'face '(:foreground "red")))
-
-(rem-defcomponent body (entries)
-  (print (format "body called"))
-  (concat (header) (entry-list entries)))
-
-(rem-defview view ()
-  (body entries))
-
-(setq entries nil)
-(setq i 0)
-
-(defun add-entry ()
-  (setq entries (cons (cons (format "title-%s" i) (format "description-%s" i)) entries))
-  (setq i (+ i 1))
-  (view))
-
-(rem-bind "*my-buffer*" 'view '(add-entry))
-
-(add-entry)
-
-(provide 'org-retention)
+(provide 'rem)
 
 ;;; rem.el ends here
