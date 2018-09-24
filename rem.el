@@ -128,13 +128,14 @@ PARAMS are used to render FORMS."
   (declare (indent defun)
            (doc-string 2)
            (debug (&define symbolp lambda-list [&optional stringp] def-body)))
-  (let* ((render (intern (format "%s-render" name)))
-         (handler (intern (format "%s--handler" name)))
+  (let* ((handler (intern (format "%s--handler" name)))
          (context '(rem--prev-hash rem--next-hash rem--deps-stack))
-         (refs (--remove (or (eq it '&optional) (eq it '&rest)) params)))
+         (parts (-split-on '&rest params))
+         (positional (--remove (eq it '&optional) (car parts)))
+         (rest (caadr parts))
+         (refs (cons rest positional)))
     `(progn
-       (defun ,render ,params ,docstring ,@forms)
-       (defun ,handler ,(append context refs)
+       (defun ,handler ,(append context params)
          (let ((args (list ,@refs)))
            (push (cons ',name args) (car rem--deps-stack))
            (-if-let* ((component (ht-get rem--prev-hash ',name))
@@ -142,14 +143,18 @@ PARAMS are used to render FORMS."
                (prog1 (car memoized)
                  (rem--copy-memo rem--prev-hash rem--next-hash ',name args))
              (push nil rem--deps-stack)
-             (let ((result (apply ',render args)))
+             (let ((result (progn ,docstring ,@forms)))
                (ht-set! (rem--params-ht rem--next-hash ',name) args
                         (cons result (pop rem--deps-stack)))
                result))))
        (defmacro ,name ,params
          ,(if (stringp docstring) docstring)
-         (let ((handler ',handler) (context ',context) (args (list ,@refs)))
-           `(,handler ,@context ,@args))))))
+         (declare (debug (body)))
+         (let ((handler ',handler)
+               (context ',context)
+               (args (list ,@positional))
+               (rest ,rest))
+           `(,handler ,@context ,@args ,@rest))))))
 
 ;; Components
 
