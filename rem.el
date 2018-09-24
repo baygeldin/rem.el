@@ -76,15 +76,19 @@
                     (n-join (--map (concat left-border it right-border) lines))
                     (n-join (make-list bottom top-border)))))))
 
+;; NOTE: not sure if 'equal test method is the best option here. It allows to
+;; operate on the data store imperatively at the cost of performance. If it
+;; turns out to be a bottleneck, it should be changed to a custom method that
+;; checks equality of each parameter in the parameters list using the 'eq test
+;; method (but with respect to text properties, of course!).
+(define-hash-table-test 'rem--params-test
+  'equal-including-properties 'sxhash)
+
 (defun rem--params-ht (root component &rest keyword-args)
   "Get hash table with params for COMPONENT in ROOT hash table.
 Additional arguments are specified as keyword/argument pairs."
   (or (ht-get root component)
-      ;; NOTE: not sure if 'equal test method is the best option here.
-      ;; Since components are supposed to be pure, it should be enough
-      ;; to compare keys in params hash table (i.e. lists of params)
-      ;; shallowly, but 'equal seems to be deep. Requires investigation.
-      (let ((params (apply 'make-hash-table :test 'equal keyword-args)))
+      (let ((params (apply 'make-hash-table :test 'rem--params-test keyword-args)))
         (ht-set! root component params)
         params)))
 
