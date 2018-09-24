@@ -241,7 +241,7 @@ In case SAVE-POINT returned a lambda, it's called right after updating buffer co
 The result is used to set the pointer. By default it restores previous row and column."
   (with-current-buffer (get-buffer-create buffer)
     (let ((inhibit-read-only t)
-          (pos (if save-point (save-point)
+          (pos (if save-point (funcall save-point)
                  (cons (line-number-at-pos) (current-column)))))
       (erase-buffer)
       (insert (funcall view))
