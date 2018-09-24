@@ -66,7 +66,7 @@
   "Add BORDER of SIZE with PROPS to CONTENT."
   (cl-flet ((get-size (dir) (abs (or (and (integerp size) size) (plist-get size dir) 0)))
             (get-border (length) (apply 'propertize (s-repeat length filler) props))
-            (n-join (list) (s-join "\n" list)))
+            (n-join (list) (when list (s-join "\n" (-non-nil list)))))
     (let* ((top (get-size :top)) (bottom (get-size :bottom))
            (right (* 2 (get-size :right))) (left (* 2 (get-size :left)))
            (lines (s-lines content)) (len (length (car lines)))
