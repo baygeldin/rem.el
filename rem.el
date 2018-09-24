@@ -204,6 +204,7 @@ Arguments are specified as keyword/argument pairs:
 
 (rem-defcomponent rem-join (direction align &rest blocks)
   "Join BLOCKS of text and return a new block.
+If a block is an array, its elements are considered as blocks.
 
 Arguments are specified as keyword/argument pairs:
 
@@ -212,23 +213,23 @@ Arguments are specified as keyword/argument pairs:
   (cl-flet ((align-cond (start end middle) (cond ((eq align 'start) start)
                                                  ((eq align 'end) end)
                                                  (t middle))))
-    (let ((blocks (-map 's-lines blocks)))
-      (if (eq direction 'column)
-          (let ((width (-max (--map (length (car it)) blocks)))
-                (pad (align-cond 's-pad-right 's-pad-left 'rem--s-center)))
-            (s-join "\n" (--map (funcall pad width " " it) (apply '-concat blocks))))
-        (let* ((height (-max (-map 'length blocks)))
-               (dir (align-cond 'top 'bottom 'middle))
-               (blocks (--map (rem--align-array
-                               dir height (s-repeat (length (car it)) " ") it)
-                              blocks)))
-          (s-join "\n" (--map (apply 's-concat
-                                     ;; NOTE: this inconsistency will be
-                                     ;; fixed in the upcoming dash.el release
-                                     (if (not (consp (cdr it)))
-                                         (list (car it) (cdr it))
-                                       it))
-                              (apply '-zip blocks))))))))
+    (if-let ((blocks (-map 's-lines (-non-nil (-flatten blocks)))))
+        (if (eq direction 'column)
+            (let ((width (-max (--map (length (car it)) blocks)))
+                  (pad (align-cond 's-pad-right 's-pad-left 'rem--s-center)))
+              (s-join "\n" (--map (funcall pad width " " it) (apply '-concat blocks))))
+          (let* ((height (-max (-map 'length blocks)))
+                 (dir (align-cond 'top 'bottom 'middle))
+                 (blocks (--map (rem--align-array
+                                 dir height (s-repeat (length (car it)) " ") it)
+                                blocks)))
+            (s-join "\n" (--map (apply 's-concat
+                                       ;; NOTE: this inconsistency will be
+                                       ;; fixed in the upcoming dash.el release
+                                       (if (not (consp (cdr it)))
+                                           (list (car it) (cdr it))
+                                         it))
+                                (apply '-zip blocks))))))))
 
 ;; Helpers
 
