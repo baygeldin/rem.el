@@ -7,4 +7,5 @@
  (depends-on "dash")
  (depends-on "s")
  (depends-on "ht")
+ (depends-on "cl")
  (depends-on "buttercup"))

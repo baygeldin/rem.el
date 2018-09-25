@@ -28,6 +28,7 @@
 (require 'dash)
 (require 's)
 (require 'ht)
+(require 'cl)
 
 ;; Private
 
@@ -178,7 +179,7 @@ Arguments are specified as keyword/argument pairs:
 :min-width MIN-WIDTH  -- block's min width (not limited by default).
 :wrap-words WRAP-WORDS -- whether to wrap long sentences (t by default)."
   (cl-flet ((key (keyword) (plist-get keyword-args keyword)))
-    (let* ((content (if-let ((wrap-words (or (key :wrap-words)
+    (let* ((content (-if-let* ((wrap-words (or (key :wrap-words)
                                              (not (member :wrap-words keyword-args))))
                              (width-limit (or (key :width) (key :max-width))))
                         (s-word-wrap width-limit content)
@@ -213,7 +214,7 @@ Arguments are specified as keyword/argument pairs:
   (cl-flet ((align-cond (start end middle) (cond ((eq align 'start) start)
                                                  ((eq align 'end) end)
                                                  (t middle))))
-    (if-let ((blocks (-map 's-lines (-non-nil (-flatten blocks)))))
+    (-if-let* ((blocks (-map 's-lines (-non-nil (-flatten blocks)))))
         (if (eq direction 'column)
             (let ((width (-max (--map (length (car it)) blocks)))
                   (pad (align-cond 's-pad-right 's-pad-left 'rem--s-center)))
@@ -246,7 +247,7 @@ The result is used to set the pointer. By default it restores previous row and c
                  (cons (line-number-at-pos) (current-column)))))
       (erase-buffer)
       (insert (funcall view))
-      (let ((pos (if (functionp pos) (pos) pos)))
+      (let ((pos (if (functionp pos) (funcall pos) pos)))
         (if (integerp pos) (goto-char pos)
           (goto-char (point-min))
           (forward-line (1- (car pos)))
@@ -256,7 +257,7 @@ The result is used to set the pointer. By default it restores previous row and c
 
 (defun rem-bind (buffer view actions &optional save-point)
   "Advise `rem-update' for BUFFER, VIEW and optional SAVE-POINT after ACTIONS."
-  (let ((handler (lambda () (rem-update buffer view save-point))))
+  (let ((handler (lambda (&rest r) (rem-update buffer view save-point))))
     (dolist (fn actions) (advice-add fn :after handler))))
 
 (provide 'rem)
