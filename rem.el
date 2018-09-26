@@ -210,12 +210,9 @@ Arguments are specified as keyword/argument pairs:
 
 (rem-defcomponent rem-join (direction align &rest blocks)
   "Join BLOCKS of text and return a new block.
-If a block is an array, its elements are considered as blocks.
-
-Arguments are specified as keyword/argument pairs:
-
-:direction DIRECTION -- defines join direction (either 'row or 'column).
-:align ALIGN -- defines blocks alignment (either 'start, 'end or 'middle)."
+DIRECTION defines join direction (either 'row or 'column).
+ALIGN defines blocks alignment (either 'start, 'end or 'middle).
+If a block is an array, its elements are considered as blocks."
   (cl-flet ((align-cond (start end middle) (cond ((eq align 'start) start)
                                                  ((eq align 'end) end)
                                                  (t middle))))
