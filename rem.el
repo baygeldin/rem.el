@@ -16,8 +16,10 @@
 ;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ;; Author: Alexander Baygeldin <a.baygeldin@gmail.com>
-;; Keywords: reactive, memoization, react, view, component, ui
+;; URL: https://github.com/baygeldin/rem.el
+;; Keywords: maint, tools
 ;; Version: 0.0.1
+;; Package-Requires: ((emacs "24.4"))
 
 ;;; Commentary:
 
