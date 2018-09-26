@@ -9,4 +9,4 @@ test:
 install:
 	${CASK} install
 
-.PHONY:	all test install
+.PHONY: all test install

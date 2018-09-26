@@ -21,7 +21,11 @@
 
 ;;; Commentary:
 
-;; Reactive memoization for Emacs Lisp.
+;; Main purpose of rem.el is to simplify building text interfaces for Emacs. It
+;; provides a bunch of utilities that when combined together allow to structure
+;; your code in the MVC way. At the core, what it does is memoizing, but without
+;; potential memory leaks. The approach is similar to React/Redux, but simpler
+;; and adapted for Emacs reality.
 
 ;;; Code:
 
@@ -98,7 +102,7 @@ Additional arguments are specified as keyword/argument pairs."
 It copies results of rendering component NAME with PARAMS along with its dependencies."
   (let* ((prev-component (ht-get prev-hash name))
          (next-component (rem--params-ht next-hash name
-                                      :size (ht-size prev-component)))
+                                         :size (ht-size prev-component)))
          (memoized (ht-get prev-component params)))
     (ht-set! next-component params memoized)
     (dolist (dependency (cdr memoized))
@@ -180,8 +184,8 @@ Arguments are specified as keyword/argument pairs:
 :wrap-words WRAP-WORDS -- whether to wrap long sentences (t by default)."
   (cl-flet ((key (keyword) (plist-get keyword-args keyword)))
     (let* ((content (-if-let* ((wrap-words (or (key :wrap-words)
-                                             (not (member :wrap-words keyword-args))))
-                             (width-limit (or (key :width) (key :max-width))))
+                                               (not (member :wrap-words keyword-args))))
+                               (width-limit (or (key :width) (key :max-width))))
                         (s-word-wrap width-limit content)
                       content))
            (lines (s-lines content))
