@@ -34,7 +34,6 @@
 (require 'dash)
 (require 's)
 (require 'ht)
-(require 'cl)
 
 ;; Private
 
@@ -263,7 +262,7 @@ The result is used to set the pointer. By default it restores previous row and c
 
 (defun rem-bind (buffer view actions &optional save-point)
   "Advise `rem-update' for BUFFER, VIEW and optional SAVE-POINT after ACTIONS."
-  (let ((handler (lambda (&rest r) (rem-update buffer view save-point))))
+  (let ((handler (lambda (&rest _) (rem-update buffer view save-point))))
     (dolist (fn actions) (advice-add fn :after handler))))
 
 (provide 'rem)
