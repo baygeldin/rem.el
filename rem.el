@@ -99,7 +99,7 @@ Additional arguments are specified as keyword/argument pairs."
         params)))
 
 (defun rem--copy-memo (prev-hash next-hash name params)
-  "Copy memoized data from PREV-HASH to NEW-HASH.
+  "Copy memoized data from PREV-HASH to NEXT-HASH.
 It copies results of rendering component NAME with PARAMS along with its dependencies."
   (let* ((prev-component (ht-get prev-hash name))
          (next-component (rem--params-ht next-hash name
@@ -241,11 +241,12 @@ Arguments are specified as keyword/argument pairs:
 
 (defun rem-update (buffer view &optional save-point)
   "Replace BUFFER contents with the result of calling VIEW.
-If BUFFER doesn't exist, create one.
-SAVE-POINT is a function that is called right before updating buffer contents
-and returns an integer, a (row . column) cons or a lambda that returns one of these.
-In case SAVE-POINT returned a lambda, it's called right after updating buffer contents.
-The result is used to set the pointer. By default it restores previous row and column."
+If BUFFER doesn't exist, create one. SAVE-POINT is a function
+that is called right before updating buffer contents and returns
+an integer, a (row . column) cons or a lambda that returns one of
+these. In case SAVE-POINT returned a lambda, it's called right
+after updating buffer contents. The result is used to set the
+pointer. By default it restores previous row and column."
   (with-current-buffer (get-buffer-create buffer)
     (let ((inhibit-read-only t)
           (pos (if save-point (funcall save-point)
