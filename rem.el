@@ -138,7 +138,7 @@ PARAMS are used to render FORMS."
          (context '(rem--prev-hash rem--next-hash rem--deps-stack))
          (parts (-split-on '&rest params))
          (positional (--remove (eq it '&optional) (car parts)))
-         (rest (caadr parts))
+         (rest (car (cadr parts)))
          (refs (cons rest positional)))
     `(progn
        (defun ,handler ,(append context params)
