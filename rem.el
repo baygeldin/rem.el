@@ -21,11 +21,11 @@
 
 ;;; Commentary:
 
-;; Main purpose of rem.el is to simplify building text interfaces for Emacs. It
-;; provides a bunch of utilities that when combined together allow to structure
-;; your code in the MVC way. At the core, what it does is memoizing, but without
-;; potential memory leaks. The approach is similar to React/Redux, but simpler
-;; and adapted for Emacs reality.
+;; The main purpose of rem.el is to simplify building text interfaces for Emacs.
+;; It provides a bunch of utilities that when combined together allow to
+;; structure your code in the MVC way. At the core, what it does is memoizing,
+;; but without potential memory leaks. The approach is similar to React/Redux,
+;; but simpler and adapted for Emacs reality.
 
 ;;; Code:
 
