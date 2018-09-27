@@ -157,9 +157,7 @@
 (defun todo-init ()
   "Initialize the application."
   (interactive)
-  (with-current-buffer (get-buffer-create todo-buffer)
-    (evil-set-initial-state 'nov-mode 'emacs)
-    (todo-mode)))
+  (with-current-buffer (get-buffer-create todo-buffer) (todo-mode)))
 
 (rem-bind todo-buffer 'todo-view
           '(todo-init todo-input todo-backspace todo-add todo-toggle
