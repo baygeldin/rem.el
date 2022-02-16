@@ -63,8 +63,6 @@ The following example is a major mode built with **rem.el**. You can look up the
 
 ![example](rem-example.gif)
 
-Please, note that the inteface itself is not this slow (it's actually pretty fast!). It's just that GIF FPS is rather low.
-
 ## Implementation
 
 Under the hood, **rem.el** maintains context for each view that consists of three things: `rem--prev-hash`, `rem--next-hash` and `rem--deps-stack`. The first two are hash tables with component names as keys and hash tables as values. Those hash tables in turn have parameters lists as keys and cons cells as values. Cons cells contain a value that a component have produced for specific parameters as `car` and a list of dependencies on other components as `cdr`. The list of dependencies in turn consists of cons cells with components names as `car` and parameters lists as `cdr`. When a view is called, it passes its context to components which in turn check if memoized results for the current parameters exist. If they exist, they are copied to a new hash table along with their dependencies. Otherwise, a component pushes itself to the top list in the dependencies stack, then a new list is pushed to the dependencies stack and the component is called and memoized as usual. Yep, it's a bit of an overkill for simple components, but for a more complex logic it makes a lot of sense (also, it's consistent).
